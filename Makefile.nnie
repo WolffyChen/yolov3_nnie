@@ -1,0 +1,84 @@
+SDK_PATH=/home/chen/Hisilicon/nfs/Hi3519A
+MPP_PATH?=$(SDK_PATH)/mpp
+
+# export global variables
+HIARCH?=hi3519av100
+
+HI_FPGA:=HI_XXXX
+ISP_VERSION:=ISP_V2
+
+# linux or HuaweiLite
+OSTYPE?=linux
+
+# cpu type single/big-little
+CPU_TYPE?=a53
+
+# Define the object output directory
+REL_DIR=$(SDK_PATH)/mpp
+SAMPLE_DIR=$(SDK_PATH)/mpp/sample
+
+# CROSS 
+CROSS?=arm-himix200-linux-
+
+###############################################################################
+LIBS_CFLAGS    += -mcpu=cortex-a53 -mfloat-abi=softfp -mfpu=neon-vfpv4
+LIBS_LD_CFLAGS += -mcpu=cortex-a53 -mfloat-abi=softfp -mfpu=neon-vfpv4
+
+# common CFLAGS
+LIBS_CFLAGS    += -fno-aggressive-loop-optimizations -ldl -ffunction-sections -fdata-sections -O2
+LIBS_LD_CFLAGS += -fno-aggressive-loop-optimizations -ldl
+
+# secure CFLAGS
+LIBS_CFLAGS    += -fstack-protector -fPIC 
+LIBS_LD_CFLAGS += -fstack-protector -Wl,-z,relro -Wl,-z,noexecstack -fPIC
+###############################################################################
+
+MPP_CFLAGS := -Wall -DHI_RELEASE -Wno-error=implicit-function-declaration
+MPP_CFLAGS += -DVER_X=1 -DVER_Y=0 -DVER_Z=0 -DVER_P=0 -DVER_B=10
+MPP_CFLAGS += -DUSER_BIT_32 -DKERNEL_BIT_32
+MPP_CFLAGS += -DENABLE_JPEGEDCF
+MPP_CFLAGS += -Wno-date-time
+
+MPI_LIBS := $(REL_LIB)/libmpi.a
+MPI_LIBS += $(REL_LIB)/libive.a
+MPI_LIBS += $(REL_LIB)/libmd.a
+MPI_LIBS += $(REL_LIB)/libnnie.a
+
+# Define cross compiler
+CC:=$(CROSS)gcc
+AR:=$(CROSS)ar
+
+COMMON_DIR ?= $(PWD)/../common
+
+REL_INC := $(REL_DIR)/include
+REL_LIB := $(REL_DIR)/lib
+
+INC_FLAGS := -I$(COMMON_DIR) -I$(MPP_PATH)/sample/common
+INC_FLAGS += -I$(REL_INC)
+
+msginfo_flag := 0
+CFLAGS += -Wall -g $(INC_FLAGS) -D$(HIARCH) -D$(HI_FPGA) -D$(ISP_VERSION) -lpthread -lm -ldl
+CFLAGS += -lstdc++
+CFLAGS += $(LIBS_CFLAGS) $(MPP_CFLAGS) -DSMP -DMSGINFO=$(msginfo_flag)
+CFLAGS += -I. -I$(PWD)/src
+
+COMM_SRC := $(wildcard $(COMMON_DIR)/*.c)
+COMM_OBJ := $(COMM_SRC:%.c=%.o)
+
+SRCS := $(wildcard $(PWD)/src/*.c)
+TARGET := libbg_nnie.a
+
+OBJS := $(SRCS:%.c=%.o)
+
+.PHONY : clean all
+
+all: $(TARGET)
+
+$(TARGET):$(COMM_OBJ) $(OBJS)
+	$(AR) rcv $(TARGET) $(OBJS) $(COMM_OBJ)
+
+clean:
+	@rm -f $(TARGET)
+	@rm -f $(OBJS)
+	@rm -f $(COMM_OBJ)
+
